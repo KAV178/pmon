@@ -1,0 +1,4 @@
+[2018-10-31 15:41:47,071] main       (PID: 5956   MainProcess) INFO      : No target spesified. Run for all with auto start mode ('Proto',)
+[2018-10-31 15:41:48,490] main       (PID: 5956   MainProcess) INFO      : "CorpProto" started with PID 964
+[2018-10-31 15:46:50,766] main       (PID: 5244   MainProcess) INFO      : No target spesified. Run for all with auto start mode ('Proto',)
+[2018-10-31 15:46:52,170] main       (PID: 5244   MainProcess) INFO      : "CorpProto" started with PID 3292
