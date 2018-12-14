@@ -74,9 +74,12 @@ class Sender(object):
             try:
                 with open(self.store_fname, 'a') as f:
                     f.write(req)
-                return True
-            except IOError:
-                self.logger.exception("Exception on sending request")
+                return True, None
+            except IOError as err:
+                if self.logger.level != 10:
+                    self.logger.critical("Exception on sending request: {0}".format(err))
+                else:
+                    self.logger.exception("Exception on sending request")
                 return False
         # Grafana
         elif self.storage.type == 'http-grafana':
@@ -84,13 +87,20 @@ class Sender(object):
             try:
                 response = requests.post(self.storage.path, data=req)
                 return response.ok
-            except requests.RequestException:
-                self.logger.exception("Can\'t send request {0} to {1}".format(req, self.storage.path))
+            except requests.RequestException as err:
+                if self.logger.level != 10:
+                    self.logger.critical("Can\'t send request {0} to {1}\n{2}".format(req, self.storage.path, err))
+                else:
+                    self.logger.exception("Can\'t send request {0} to {1}".format(req, self.storage.path))
+                return False
 
     def sending_worker(self):
+        retry_cnt = 1
+        retry_data = set()
         while True:
             self.logger.debug(u"Sender queue size = {0}".format(self.queue.qsize()))
             item = self.queue.get()
+
             self.logger.debug(u"[{0}] preparation for send data: {1}".format(item[0].capitalize(), item[1]))
             if self._send_data(item):
                 self.logger.info(u"Sending {DT} data for server: {SV_NAME} comp: {CC_ALIAS} - SUCCESS".
@@ -99,3 +109,15 @@ class Sender(object):
             else:
                 self.logger.critical(u"Sending {DT} data for server: {SV_NAME} comp: {CC_ALIAS} - FAILED".
                                      format(DT=item[0], SV_NAME=item[1]['SV_NAME'], CC_ALIAS=item[1]['CC_ALIAS']))
+                if retry_cnt < 4:
+                    retry_data.add(item)
+                    self.logger.info(u"Retry sending {DT} data for server: {SV_NAME} comp: {CC_ALIAS}".
+                                     format(DT=item[0], SV_NAME=item[1]['SV_NAME'], CC_ALIAS=item[1]['CC_ALIAS'],))
+                self.queue.task_done()
+
+            # add failed items to queue
+            if not self.queue.qsize() and len(retry_data):
+                print("Sending failed data: attempt #{0}".format(retry_cnt))
+                retry_cnt += 1
+                while len(retry_data):
+                    self.queue.put(retry_data.pop())
